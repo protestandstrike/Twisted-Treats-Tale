@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Twisted Treats Tale — the match-3 where rules keep changing</title>
+<meta name="description" content="The only rule is the rules are always changing." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --background: oklch(0.19 0.06 268);
+    --card: oklch(0.25 0.07 268);
+    --card-foreground: oklch(0.97 0.02 90);
+    --primary: oklch(0.8 0.17 45);
+    --primary-foreground: oklch(0.21 0.06 268);
+    --muted-foreground: oklch(0.76 0.04 268);
+    --accent: oklch(0.78 0.18 340);
+    --border: oklch(0.36 0.07 268);
+    --candy-1: oklch(0.7 0.21 25);
+    --candy-2: oklch(0.83 0.17 75);
+    --candy-3: oklch(0.88 0.17 110);
+    --candy-4: oklch(0.78 0.16 175);
+    --candy-5: oklch(0.72 0.16 250);
+    --candy-6: oklch(0.76 0.18 340);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--background);
+    color: var(--card-foreground);
+    font-family: "DM Sans", system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px 48px;
+  }
+  .wrap { max-width: 28rem; margin: 0 auto; width: 100%; }
+  .font-display { font-family: "Fredoka", "DM Sans", sans-serif; }
+  header { text-align: center; }
+  h1 { font-family: "Fredoka", sans-serif; font-size: clamp(2.25rem, 6vw, 3rem); font-weight: 700; }
+  .tagline { margin-top: 4px; font-size: 0.875rem; color: var(--muted-foreground); }
+
+  .stats { margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+  .stat { border: 1px solid var(--border); background: var(--card); border-radius: 1rem; padding: 12px 8px; }
+  .stat .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--muted-foreground); }
+  .stat .value { font-family: "Fredoka", sans-serif; font-size: 1.25rem; font-weight: 600; }
+
+  .rule-card {
+    margin-top: 16px; border: 1px solid var(--border); background: var(--card);
+    border-radius: 1rem; padding: 16px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);
+  }
+  .rule-card.pop { animation: rule-pop 0.45s ease; }
+  .rule-card .kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: var(--accent); }
+  .rule-card .name { font-family: "Fredoka", sans-serif; font-size: 1.25rem; font-weight: 600; }
+  .rule-card .blurb { font-size: 0.875rem; color: var(--muted-foreground); }
+
+  .board-shell {
+    position: relative; margin-top: 16px; border: 1px solid var(--border);
+    background: color-mix(in oklab, var(--card) 70%, transparent);
+    border-radius: 1.5rem; padding: 8px; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
+  }
+  .board { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+  .candy {
+    aspect-ratio: 1; border: none; border-radius: 0.75rem; cursor: pointer;
+    font-size: clamp(10px, 2vw, 13px); font-weight: 700; color: rgb(0 0 0 / 0.45);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s ease; animation: pop 0.2s ease;
+  }
+  .candy:hover { transform: scale(1.05); }
+  .candy.selected {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 2px var(--primary), 0 0 0 4px var(--card);
+  }
+  .candy.t1 { background: var(--candy-1); } .candy.t2 { background: var(--candy-2); }
+  .candy.t3 { background: var(--candy-3); } .candy.t4 { background: var(--candy-4); }
+  .candy.t5 { background: var(--candy-5); } .candy.t6 { background: var(--candy-6); }
+
+  .combo {
+    pointer-events: none; position: absolute; left: 0; right: 0; top: 50%; text-align: center;
+  }
+  .combo span {
+    display: inline-block; background: var(--primary); color: var(--primary-foreground);
+    border-radius: 9999px; padding: 4px 16px; font-family: "Fredoka", sans-serif;
+    font-size: 1.125rem; font-weight: 700; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.4);
+    animation: pop 0.25s ease;
+  }
+
+  .overlay {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px; border-radius: 1.5rem; text-align: center; padding: 24px;
+    background: color-mix(in oklab, var(--background) 85%, transparent);
+    backdrop-filter: blur(4px);
+  }
+  .overlay h2 { font-size: 1.5rem; font-weight: 700; font-family: "Fredoka", sans-serif; }
+  .overlay p { font-size: 0.875rem; color: var(--muted-foreground); }
+  .overlay button {
+    border: none; cursor: pointer; border-radius: 9999px; background: var(--primary);
+    color: var(--primary-foreground); padding: 12px 24px; font-family: "Fredoka", sans-serif;
+    font-size: 1.125rem; font-weight: 600; transition: transform 0.15s ease;
+  }
+  .overlay button:hover { transform: scale(1.05); }
+
+  .hint { margin-top: 16px; text-align: center; font-size: 12px; color: var(--muted-foreground); }
+
+  .timeline {
+    margin-top: 24px; border: 1px solid var(--border); border-radius: 1.5rem;
+    background: color-mix(in oklab, var(--card) 70%, transparent); padding: 16px;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.3);
+  }
+  .timeline .head { display: flex; align-items: baseline; justify-content: space-between; }
+  .timeline h2 { font-family: "Fredoka", sans-serif; font-size: 1.125rem; font-weight: 600; }
+  .timeline .count { font-size: 12px; color: var(--muted-foreground); }
+  .timeline .empty { margin-top: 12px; font-size: 0.875rem; color: var(--muted-foreground); }
+  .timeline ol { margin-top: 16px; list-style: none; padding: 0 0 0 20px; border-left: 1px solid var(--border); }
+  .timeline li { position: relative; margin-bottom: 16px; }
+  .timeline li:last-child { margin-bottom: 0; }
+  .timeline .dot {
+    position: absolute; left: -26.5px; top: 4px; width: 12px; height: 12px; border-radius: 9999px;
+    border: 2px solid var(--card); background: var(--accent);
+  }
+  .timeline .dot.live { background: var(--primary); }
+  .timeline .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+  .timeline .rname { font-family: "Fredoka", sans-serif; font-size: 1rem; font-weight: 600; }
+  .timeline .rtime { font-size: 12px; color: var(--muted-foreground); }
+  .timeline .live-badge {
+    border-radius: 9999px; background: var(--primary); color: var(--primary-foreground);
+    padding: 2px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .timeline .effect { margin-top: 2px; font-size: 0.875rem; color: var(--muted-foreground); }
+  .timeline .meta { margin-top: 2px; font-size: 12px; color: var(--accent); }
+
+  @keyframes pop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes rule-pop {
+    0% { transform: scale(0.96); box-shadow: 0 0 0 3px var(--accent); }
+    100% { transform: scale(1); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3); }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <h1>Twisted Treats Tale</h1>
+    <p class="tagline">The only rule is the rules are always changing.</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><p class="label">Score</p><p class="value" id="stat-score">0</p></div>
+    <div class="stat"><p class="label">Time</p><p class="value" id="stat-time">90s</p></div>
+    <div class="stat"><p class="label">Rule flip</p><p class="value" id="stat-flip">18s</p></div>
+  </div>
+
+  <div class="rule-card" id="rule-card">
+    <p class="kicker">Current rule</p>
+    <p class="name" id="rule-name">Plain Sugar</p>
+    <p class="blurb" id="rule-blurb">Standard rules. Match 3 or more.</p>
+  </div>
+
+  <div class="board-shell">
+    <div class="board" id="board"></div>
+    <div class="combo" id="combo" hidden><span id="combo-text"></span></div>
+    <div class="overlay" id="overlay">
+      <h2 id="overlay-title">Ready to lose track of the rules?</h2>
+      <p id="overlay-score" hidden></p>
+      <button id="start-btn">Start game</button>
+    </div>
+  </div>
+
+  <p class="hint">Tap two candies to swap them. Every 10–22 seconds the rules mutate without warning.</p>
+
+  <section class="timeline">
+    <div class="head">
+      <h2>Rule timeline</h2>
+      <span class="count" id="timeline-count">0 rules this round</span>
+    </div>
+    <p class="empty" id="timeline-empty">Start a round and every rule change will be logged here with its timestamp.</p>
+    <ol id="timeline-list" hidden></ol>
+  </section>
+</main>
+
+<script>
+"use strict";
+// ---------- Game logic (matches the app version) ----------
+const SIZE = 8, TYPES = 6, ROUND_SECONDS = 90;
+const FACE = ["●", "◆", "▲", "★", "⬟", "❤"];
+
+const RULES = [
+  { id: "normal",      name: "Plain Sugar",    blurb: "Standard rules. Match 3 or more." },
+  { id: "match4",      name: "Greedy Mode",    blurb: "Matches need 4 candies or more." },
+  { id: "gravityUp",   name: "Upside Down",    blurb: "Candies fall upwards." },
+  { id: "doubleScore", name: "Sugar Rush",     blurb: "Every clear scores double." },
+  { id: "teleportSwap",name: "Teleport",       blurb: "Swap any two candies, anywhere." },
+  { id: "freeSwap",    name: "No Takebacks",   blurb: "Swaps stick even with no match." },
+  { id: "fiveColors",  name: "Colour Drought", blurb: "One candy colour stops spawning." },
+];
+const RULE_EFFECT = {
+  normal: "Back to basics — match 3, candies fall down, single points.",
+  match4: "Three in a row stopped counting; you needed four.",
+  gravityUp: "Gravity reversed — new candies dropped in from the bottom.",
+  doubleScore: "Every clear paid double.",
+  teleportSwap: "Neighbours no longer required — any two candies could trade places.",
+  freeSwap: "Failed swaps stopped snapping back, so mistakes stayed on the board.",
+  fiveColors: "One candy colour stopped spawning, thinning the board.",
+};
+function ruleStateFor(id) {
+  return {
+    minMatch: id === "match4" ? 4 : 3,
+    gravityUp: id === "gravityUp",
+    multiplier: id === "doubleScore" ? 2 : 1,
+    anySwap: id === "teleportSwap",
+    freeSwap: id === "freeSwap",
+    colors: id === "fiveColors" ? TYPES - 1 : TYPES,
+  };
+}
+const rand = (colors) => Math.floor(Math.random() * colors);
+
+function findMatches(grid, minMatch) {
+  const hits = new Set();
+  const scan = (get) => {
+    for (let a = 0; a < SIZE; a++) {
+      let run = 1;
+      for (let b = 1; b <= SIZE; b++) {
+        const same = b < SIZE && grid[get(a, b)] !== -1 && grid[get(a, b)] === grid[get(a, b - 1)];
+        if (same) run++;
+        else {
+          if (run >= minMatch) for (let k = b - run; k < b; k++) hits.add(get(a, k));
+          run = 1;
+        }
+      }
+    }
+  };
+  scan((r, c) => r * SIZE + c);
+  scan((c, r) => r * SIZE + c);
+  return hits;
+}
+function collapse(grid, rules) {
+  const next = grid.slice();
+  for (let c = 0; c < SIZE; c++) {
+    const col = [];
+    for (let r = 0; r < SIZE; r++) {
+      const v = next[r * SIZE + c];
+      if (v !== undefined && v !== -1) col.push(v);
+    }
+    const missing = SIZE - col.length;
+    const fresh = Array.from({ length: missing }, () => rand(rules.colors));
+    const merged = rules.gravityUp ? [...col, ...fresh] : [...fresh, ...col];
+    for (let r = 0; r < SIZE; r++) next[r * SIZE + c] = merged[r];
+  }
+  return next;
+}
+function resolveBoard(grid, rules) {
+  let current = grid, cleared = 0, cascades = 0;
+  for (let guard = 0; guard < 24; guard++) {
+    const hits = findMatches(current, rules.minMatch);
+    if (hits.size === 0) break;
+    cleared += hits.size; cascades++;
+    const wiped = current.slice();
+    hits.forEach((i) => (wiped[i] = -1));
+    current = collapse(wiped, rules);
+  }
+  const gained = cleared === 0 ? 0 : cleared * 10 * rules.multiplier * cascades;
+  return { grid: current, cleared, cascades, gained };
+}
+function createGrid(rules) {
+  let grid = Array.from({ length: SIZE * SIZE }, () => rand(rules.colors));
+  while (findMatches(grid, 3).size > 0) {
+    grid = resolveBoard(grid, { ...rules, multiplier: 1 }).grid;
+  }
+  return grid;
+}
+function areAdjacent(a, b) {
+  const ar = Math.floor(a / SIZE), ac = a % SIZE, br = Math.floor(b / SIZE), bc = b % SIZE;
+  return Math.abs(ar - br) + Math.abs(ac - bc) === 1;
+}
+function pickRule(current) {
+  const pool = RULES.filter((r) => r.id !== current);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+// ---------- UI state ----------
+const els = {
+  board: document.getElementById("board"),
+  score: document.getElementById("stat-score"),
+  time: document.getElementById("stat-time"),
+  flip: document.getElementById("stat-flip"),
+  ruleCard: document.getElementById("rule-card"),
+  ruleName: document.getElementById("rule-name"),
+  ruleBlurb: document.getElementById("rule-blurb"),
+  combo: document.getElementById("combo"),
+  comboText: document.getElementById("combo-text"),
+  overlay: document.getElementById("overlay"),
+  overlayTitle: document.getElementById("overlay-title"),
+  overlayScore: document.getElementById("overlay-score"),
+  startBtn: document.getElementById("start-btn"),
+  tlCount: document.getElementById("timeline-count"),
+  tlEmpty: document.getElementById("timeline-empty"),
+  tlList: document.getElementById("timeline-list"),
+};
+
+let rule = RULES[0];
+let grid = createGrid(ruleStateFor("normal"));
+let selected = null;
+let score = 0;
+let time = ROUND_SECONDS;
+let running = false;
+let countdown = 18;
+let timeline = [];
+let timerId = null;
+let comboTimeout = null;
+
+const rules = () => ruleStateFor(rule.id);
+
+function renderBoard() {
+  els.board.innerHTML = "";
+  grid.forEach((candy, i) => {
+    const btn = document.createElement("button");
+    btn.className = `candy t${candy + 1}` + (selected === i ? " selected" : "");
+    btn.textContent = FACE[candy];
+    btn.setAttribute("aria-label", `candy ${candy + 1} at ${i}`);
+    btn.addEventListener("click", () => tap(i));
+    els.board.appendChild(btn);
+  });
+}
+function renderStats() {
+  els.score.textContent = score.toLocaleString();
+  els.time.textContent = `${time}s`;
+  els.flip.textContent = `${countdown}s`;
+}
+function renderRule(pop) {
+  els.ruleName.textContent = rule.name;
+  els.ruleBlurb.textContent = rule.blurb;
+  if (pop) {
+    els.ruleCard.classList.remove("pop");
+    void els.ruleCard.offsetWidth;
+    els.ruleCard.classList.add("pop");
+  }
+}
+function renderTimeline() {
+  els.tlCount.textContent = `${timeline.length} ${timeline.length === 1 ? "rule" : "rules"} this round`;
+  if (timeline.length === 0) {
+    els.tlEmpty.hidden = false; els.tlList.hidden = true; return;
+  }
+  els.tlEmpty.hidden = true; els.tlList.hidden = false;
+  els.tlList.innerHTML = "";
+  timeline.forEach((entry, i) => {
+    const next = timeline[i + 1];
+    const ended = next ? next.at : ROUND_SECONDS - time;
+    const gained = (next ? next.scoreAt : score) - entry.scoreAt;
+    const isLive = !next && running;
+    const li = document.createElement("li");
+    li.innerHTML =
+      `<span class="dot ${isLive ? "live" : ""}"></span>` +
+      `<div class="row"><span class="rname"></span> <span class="rtime">${clock(entry.at)} → ${isLive ? "now" : clock(ended)}</span>` +
+      (isLive ? ' <span class="live-badge">live</span>' : "") + `</div>` +
+      `<p class="effect"></p>` +
+      `<p class="meta">${gained > 0 ? `+${gained.toLocaleString()} points scored` : "no points yet"} · lasted ${Math.max(0, ended - entry.at)}s</p>`;
+    li.querySelector(".rname").textContent = entry.name;
+    li.querySelector(".effect").textContent = entry.effect;
+    els.tlList.appendChild(li);
+  });
+}
+function showCombo(text, ms) {
+  els.comboText.textContent = text;
+  els.combo.hidden = false;
+  clearTimeout(comboTimeout);
+  comboTimeout = setTimeout(() => { els.combo.hidden = true; }, ms);
+}
+function renderOverlay() {
+  els.overlay.style.display = running ? "none" : "flex";
+  els.overlayTitle.textContent = time === 0 ? "Time's up!" : "Ready to lose track of the rules?";
+  els.overlayScore.hidden = time !== 0;
+  if (time === 0) els.overlayScore.textContent = `You scored ${score.toLocaleString()} points.`;
+  els.startBtn.textContent = time === 0 ? "Play again" : "Start game";
+}
+function renderAll(popRule) {
+  renderBoard(); renderStats(); renderRule(popRule); renderTimeline(); renderOverlay();
+}
+
+function start() {
+  rule = RULES[0];
+  grid = createGrid(ruleStateFor("normal"));
+  score = 0; time = ROUND_SECONDS; selected = null; countdown = 18;
+  timeline = [{ at: 0, name: rule.name, effect: RULE_EFFECT[rule.id], scoreAt: 0 }];
+  running = true;
+  clearInterval(timerId);
+  timerId = setInterval(tick, 1000);
+  els.combo.hidden = true;
+  renderAll(false);
+}
+function tick() {
+  if (time <= 1) {
+    time = 0; running = false; clearInterval(timerId);
+    renderAll(false);
+    return;
+  }
+  time -= 1;
+  if (countdown <= 1) {
+    countdown = 10 + Math.floor(Math.random() * 12);
+    rule = pickRule(rule.id);
+    selected = null;
+    timeline.push({ at: ROUND_SECONDS - time, name: rule.name, effect: RULE_EFFECT[rule.id], scoreAt: score });
+    // Clean up any matches the new rule set made valid.
+    const out = resolveBoard(grid, rules());
+    if (out.cleared > 0) { grid = out.grid; score += out.gained; }
+    renderAll(true);
+  } else {
+    countdown -= 1;
+    renderAll(false);
+  }
+}
+function tap(index) {
+  if (!running) return;
+  if (selected === null) { selected = index; renderBoard(); return; }
+  if (selected === index) { selected = null; renderBoard(); return; }
+  if (!rules().anySwap && !areAdjacent(selected, index)) { selected = index; renderBoard(); return; }
+
+  const swapped = grid.slice();
+  [swapped[selected], swapped[index]] = [swapped[index], swapped[selected]];
+  selected = null;
+
+  const hasMatch = findMatches(swapped, rules().minMatch).size > 0;
+  if (!hasMatch) {
+    if (rules().freeSwap) {
+      grid = swapped;
+      showCombo("no match — but it sticks", 900);
+      renderBoard();
+    } else {
+      renderBoard();
+    }
+    return;
+  }
+  const out = resolveBoard(swapped, rules());
+  grid = out.grid;
+  score += out.gained;
+  showCombo(`+${out.gained}${out.cascades > 1 ? ` · ${out.cascades}x cascade` : ""}`, 1000);
+  renderBoard(); renderStats(); renderTimeline();
+}
+
+els.startBtn.addEventListener("click", start);
+renderAll(false);
+</script>
+</body>
+</html>

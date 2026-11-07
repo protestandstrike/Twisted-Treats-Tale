@@ -10,7 +10,7 @@ import zipfile
 from PIL import Image, ImageDraw
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
-from mcp.server import MCPServer
+from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 
 mcp = MCPServer("Pixel Art Studio")
@@ -200,4 +200,4 @@ security=TransportSecuritySettings(
     allowed_hosts=[hostname,hostname+":*","localhost","localhost:*","127.0.0.1","127.0.0.1:*"],
     allowed_origins=["https://chatgpt.com","https://www.chatgpt.com"],
 )
-app=mcp.streamable_http_app(transport_security=security)
+app=mcp.streamable_http_app(host="0.0.0.0",transport_security=security,stateless_http=True,json_response=True)
